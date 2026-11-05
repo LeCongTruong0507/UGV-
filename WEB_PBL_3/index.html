@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PBL3 TRUONG AND NHAT - Dashboard</title>
+  
+  <!-- Thư viện ngoài: Tailwind CSS, FontAwesome, Leaflet, MQTT.js -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+  <!-- Liên kết tới file style.css của bạn -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="overflow-hidden flex flex-col h-screen">
+
+  <!-- TOP TELEMETRY BAR -->
+  <header class="h-16 bg-slate-900 border-b border-slate-800 px-6 flex items-center justify-between z-10">
+    <div class="flex items-center space-x-3">
+      <i class="fa-solid fa-truck-fast text-emerald-400 text-2xl"></i>
+      <h1 class="text-lg font-bold tracking-wider uppercase text-slate-100">ROBOT GIAO HANG - PBL3</h1>
+      <span id="mqtt-status" class="px-2.5 py-0.5 text-xs font-medium rounded-full bg-red-500/20 text-red-400 border border-red-500/30">
+        <i class="fa-solid fa-circle text-[8px] mr-1"></i> Disconnected
+      </span>
+    </div>
+
+    <!-- Thông số trạng thái xe -->
+    <div class="flex items-center space-x-8 text-sm">
+      <div class="flex items-center space-x-2">
+        <i class="fa-solid fa-satellite-dish text-sky-400"></i>
+        <div>
+          <p class="text-xs text-slate-400">Trạng thái</p>
+          <p id="val-status" class="font-semibold text-sky-400">IDLE</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-2">
+        <i class="fa-solid fa-location-crosshairs text-purple-400"></i>
+        <div>
+          <p class="text-xs text-slate-400">Tọa độ (GPS 4G)</p>
+          <p id="val-gps" class="font-mono font-semibold text-[11px] sm:text-xs">16.07480000, 108.15100000</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-2">
+        <i class="fa-solid fa-gauge-high text-amber-400"></i>
+        <div>
+          <p class="text-xs text-slate-400">Tốc độ hiện tại</p>
+          <p class="font-semibold"><span id="val-speed">0.0</span> m/s</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-2">
+        <i class="fa-solid fa-battery-three-quarters text-emerald-400 text-lg"></i>
+        <div class="w-28">
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-slate-400">Pin</span>
+            <span id="val-bat" class="font-bold text-emerald-400">85%</span>
+          </div>
+          <div class="w-full bg-slate-700 h-2 rounded-full overflow-hidden">
+            <div id="bar-bat" class="bg-emerald-400 h-full transition-all duration-300" style="width: 85%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT -->
+  <div class="flex flex-1 overflow-hidden">
+    
+    <!-- BẢN ĐỒ KHUÔN VIÊN TRƯỜNG -->
+    <div class="flex-1 relative">
+      <div id="map"></div>
+      <div class="absolute bottom-5 left-5 z-[500] bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded-lg shadow-lg text-xs space-y-1">
+        <p class="font-semibold text-slate-200"><i class="fa-solid fa-hand-pointer text-emerald-400 mr-1"></i> Hướng dẫn:</p>
+        <p class="text-slate-400">- Click lên bản đồ để thêm điểm giao hàng (Waypoint).</p>
+        <p class="text-slate-400">- Chỉnh thời gian xe dừng chờ nhận hàng ở bảng bên phải.</p>
+      </div>
+    </div>
+
+    <!-- SIDEBAR ĐIỀU KHIỂN -->
+    <aside class="w-96 bg-slate-900 border-l border-slate-800 flex flex-col z-10">
+      
+      <!-- 1. Cấu hình HiveMQ Public Broker -->
+      <div class="p-4 border-b border-slate-800">
+        <div class="flex justify-between items-center mb-2">
+          <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400"><i class="fa-solid fa-cloud mr-1"></i> Cấu hình Broker</h2>
+          <button onclick="toggleMqttConfig()" class="text-xs text-sky-400 hover:underline">Ẩn/Hiện</button>
+        </div>
+        <div id="mqtt-config" class="space-y-2 text-xs">
+          <!-- Thay thế bằng Address của HiveMQ Public -->
+          <input id="mqtt-host" type="text" placeholder="Broker URL" 
+                 value="ws://broker.hivemq.com:8000/mqtt" 
+                 class="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500">
+          
+          <div class="bg-slate-800 border border-slate-700 rounded px-2.5 py-2 text-slate-400 text-center italic text-xs">
+            Public Broker - Không yêu cầu Username & Password
+          </div>
+
+          <button onclick="connectMQTT()" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-semibold py-1.5 rounded transition">
+            Kết nối Broker
+          </button>
+        </div>
+      </div>
+
+      <!-- 2. Điều khiển tốc độ & Lệnh nhanh -->
+      <div class="p-4 border-b border-slate-800 space-y-3">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400"><i class="fa-solid fa-sliders mr-1"></i> Điều khiển Tốc độ & Lệnh</h2>
+        
+        <div>
+          <div class="flex justify-between text-xs mb-1">
+            <span>Tốc độ đặt (Target Speed):</span>
+            <span class="font-bold text-amber-400"><span id="lbl-target-speed">1.5</span> m/s</span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <input id="rng-speed" type="range" min="0.5" max="5.0" step="0.1" value="1.5" 
+                   oninput="document.getElementById('lbl-target-speed').innerText = this.value"
+                   class="flex-1 accent-amber-400 cursor-pointer">
+            <button onclick="sendSpeedCommand()" class="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-xs px-3 py-1 rounded font-semibold transition">
+              Set Speed
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2 pt-1">
+          <button onclick="sendQuickCmd('START')" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2 rounded transition">
+            <i class="fa-solid fa-play mr-1"></i> CHẠY
+          </button>
+          <button onclick="sendQuickCmd('STOP')" class="bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold py-2 rounded transition">
+            <i class="fa-solid fa-hand mr-1"></i> DỪNG KHẨN
+          </button>
+          <button onclick="sendQuickCmd('RTL')" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2 rounded transition">
+            <i class="fa-solid fa-house mr-1"></i> VỀ TRẠM
+          </button>
+        </div>
+      </div>
+
+      <!-- 3. Danh sách Waypoint -->
+      <div class="flex-1 flex flex-col overflow-hidden p-4">
+        <div class="flex justify-between items-center mb-3">
+          <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">
+            <i class="fa-solid fa-route mr-1"></i> Danh sách điểm giao (<span id="wp-count">0</span>)
+          </h2>
+          <button onclick="clearWaypoints()" class="text-xs text-rose-400 hover:underline">
+            <i class="fa-solid fa-trash-can mr-1"></i>Xóa hết
+          </button>
+        </div>
+
+        <div id="wp-list" class="flex-1 overflow-y-auto custom-scroll space-y-2 pr-1">
+          <p class="text-xs text-slate-500 text-center mt-10">Chưa có điểm giao hàng nào.<br>Hãy click lên bản đồ để thêm điểm.</p>
+        </div>
+
+        <div class="pt-3 border-t border-slate-800 mt-2">
+          <button onclick="uploadMission()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2.5 rounded-lg shadow-lg transition flex items-center justify-center space-x-2">
+            <i class="fa-solid fa-paper-plane"></i>
+            <span>NẠP HÀNH TRÌNH XUỐNG XE</span>
+          </button>
+        </div>
+      </div>
+
+    </aside>
+  </div>
+
+  <!-- Liên kết tới file app.js của bạn -->
+  <script src="app.js"></script>
+</body>
+</html>

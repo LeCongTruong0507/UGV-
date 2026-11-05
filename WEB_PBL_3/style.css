@@ -1,0 +1,30 @@
+body {
+  background-color: #0f172a;
+  color: #f8fafc;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+#map {
+  height: calc(100vh - 64px);
+  width: 100%;
+  z-index: 1;
+}
+
+/* Tùy chỉnh thanh cuộn danh sách Waypoint */
+.custom-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 3px;
+}
+
+/* Tùy chỉnh bảng chọn lớp bản đồ (Leaflet Layer Control) sang Dark Mode */
+.leaflet-control-layers {
+  background: #1e293b !important;
+  color: #f8fafc !important;
+  border: 1px solid #334155 !important;
+  border-radius: 8px !important;
+  padding: 4px 8px !important;
+}
