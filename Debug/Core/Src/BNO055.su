@@ -1,0 +1,8 @@
+../Core/Src/BNO055.c:20:13:LPF_Init	24	static
+../Core/Src/BNO055.c:26:14:LPF_Update	16	static
+../Core/Src/BNO055.c:32:6:BNO055_FilterInit	24	static
+../Core/Src/BNO055.c:42:13:bno055_write	32	static
+../Core/Src/BNO055.c:48:13:bno055_read	32	static
+../Core/Src/BNO055.c:54:6:BNO055_ReadEuler	24	static
+../Core/Src/BNO055.c:66:6:BNO055_ReadGyro	40	static
+../Core/Src/BNO055.c:94:6:BNO055_Init	16	static

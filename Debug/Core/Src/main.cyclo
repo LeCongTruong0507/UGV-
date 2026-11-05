@@ -1,0 +1,8 @@
+../Core/Src/main.c:86:6:Clear_SIM_Buffer	1
+../Core/Src/main.c:94:6:SIM_WaitResponse	3
+../Core/Src/main.c:104:6:Send_AT_Command	3
+../Core/Src/main.c:127:6:TCP_Publish_Telemetry	4
+../Core/Src/main.c:183:5:main	5
+../Core/Src/main.c:317:6:SystemClock_Config	3
+../Core/Src/main.c:388:6:HAL_UARTEx_RxEventCallback	10
+../Core/Src/main.c:453:6:Error_Handler	1
