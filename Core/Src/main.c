@@ -20,6 +20,7 @@
 #include "main.h"
 #include "dma.h"
 #include "i2c.h"
+#include "tim.h"
 #include "usart.h"
 #include "gpio.h"
 
@@ -73,12 +74,26 @@ uint16_t counter = 0;
 
 Waypoint_t rover_mission[MAX_WAYPOINTS];
 uint8_t total_waypoints = 0;
+
+double filtered_lat = 0.0;
+double filtered_lng = 0.0;
+
+uint32_t start_time[6]; // Lưu thời gian sườn lên cho 6 kênh
+uint16_t pwm_value[6];
+
+int16_t left_motor  = 0;
+int16_t right_motor = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-
+bool SIM_WaitResponse(const char* expected_response, uint32_t timeout_ms);
+void Clear_SIM_Buffer(void);
+bool Send_AT_Command(char *cmd, const char *expected_response, uint32_t timeout_ms);
+void TCP_Publish_Telemetry(double lat, double lng, uint8_t bat, float spd, const char *status, float yaw_angle);
+void Update_Robot_Motion(void);
+void Control_Motors(int16_t speed1, int16_t speed2);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -124,7 +139,8 @@ bool Send_AT_Command(char *cmd, const char *expected_response, uint32_t timeout_
 }
 
 // Hàm gửi dữ liệu Telemetry qua TCP Socket thô
-void TCP_Publish_Telemetry(float lat, float lng, uint8_t bat, float spd, const char *status, float yaw_angle) {
+// 1. ĐỔI FLOAT THÀNH DOUBLE CHO LAT VÀ LNG ĐỂ LẤY CHUẨN 8 SỐ THẬP PHÂN
+void TCP_Publish_Telemetry(double lat, double lng, uint8_t bat, float spd, const char *status, float yaw_angle) {
     char json_payload[150];
     char mqtt_packet[200];
     char at_send_cmd[30];
@@ -132,19 +148,18 @@ void TCP_Publish_Telemetry(float lat, float lng, uint8_t bat, float spd, const c
     char topic[] = "lct_pbl3_rover/telemetry";
     uint16_t topic_len = strlen(topic);
 
-    // 1. Tạo chuỗi JSON
+    // Tạo chuỗi JSON (Đã dùng %.8f)
     sprintf(json_payload, "{\"lat\":%.8f,\"lng\":%.8f,\"bat\":%d,\"spd\":%.1f,\"status\":\"%s\",\"yaw\":%.1f}",
                 lat, lng, bat, spd, status, yaw_angle);
     uint16_t json_len = strlen(json_payload);
 
     // Tính toán độ dài gói tin MQTT PUBLISH thô
-    // Fixed header (2 bytes) + Topic Length (2 bytes) + Topic Name + Payload
     uint16_t remaining_length = 2 + topic_len + json_len;
 
     uint16_t packet_idx = 0;
-    mqtt_packet[packet_idx++] = 0x30; // MQTT Control Packet Type: PUBLISH (QoS 0)
+    mqtt_packet[packet_idx++] = 0x30; // PUBLISH (QoS 0)
 
-    // Encode Remaining Length theo chuẩn MQTT
+    // Encode Remaining Length
     uint32_t x = remaining_length;
     do {
         uint8_t encoded_byte = x % 128;
@@ -163,16 +178,87 @@ void TCP_Publish_Telemetry(float lat, float lng, uint8_t bat, float spd, const c
     memcpy(&mqtt_packet[packet_idx], json_payload, json_len);
     packet_idx += json_len;
 
-    // 2. Gửi lệnh AT+CIPSEND để đẩy dữ liệu thô qua kênh TCP số 0
+    // ==========================================
+    // KHU VỰC ĐÃ TỐI ƯU HÓA ÉP XUNG THỜI GIAN
+    // ==========================================
     sprintf(at_send_cmd, "AT+CIPSEND=0,%d\r\n", packet_idx);
-    if (Send_AT_Command(at_send_cmd, ">", 2000)) {
-        Clear_SIM_Buffer();
-        HAL_UART_Transmit(&huart2, (uint8_t*)mqtt_packet, packet_idx, 1000);
-        SIM_WaitResponse("SEND OK", 3000);
 
-        // In log ra cổng UART4 (Debug Laptop)
+    // 2. GIẢM TIMEOUT CHỜ DẤU '>' TỪ 2000ms XUỐNG CÒN 300ms
+    if (Send_AT_Command(at_send_cmd, ">", 300)) {
+        Clear_SIM_Buffer();
+
+        // 3. GIẢM TIMEOUT TRUYỀN UART TỪ 1000ms XUỐNG 100ms
+        HAL_UART_Transmit(&huart2, (uint8_t*)mqtt_packet, packet_idx, 100);
+
+        // 4. GIẢM TIMEOUT CHỜ "SEND OK" TỪ 3000ms XUỐNG CÒN 200ms
+        // Nghĩa là dù mạng 4G có lag đi chăng nữa, STM32 chỉ chờ tối đa 0.2s rồi lập tức chạy lệnh tiếp theo để điều khiển động cơ.
+        SIM_WaitResponse("SEND OK", 200);
+
+        // In log ra cổng UART4
         HAL_UART_Transmit(&huart4, (uint8_t*)">> TCP_DATA_SENT\r\n", 17, 100);
     }
+}
+void Control_Motors(int16_t speed1, int16_t speed2)
+{
+    // 1. Ràng buộc giới hạn an toàn (-1000 đến 1000)
+    speed1 = (speed1 > 900) ? 900 : (speed1 < -900 ? -900 : speed1);
+    speed2 = (speed2 > 900) ? 900 : (speed2 < -900 ? -900 : speed2);
+
+    if(abs(speed1) > 29) {
+    	HAL_GPIO_WritePin(GPIOE, GPIO_PIN_10, (speed1 >= 0) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    	__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, abs(speed1));
+    }
+    else {
+    	__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, 0);
+    }
+    if(abs(speed2) > 29) {
+    	HAL_GPIO_WritePin(GPIOE, GPIO_PIN_15, (speed2 >= 0) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    	__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, abs(speed2));
+    }
+    else {
+        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, 0);
+    }
+}
+void Update_Robot_Motion(void)
+{
+    int32_t forward = 0;
+    int32_t steer = 0;
+
+    // ----------------------------------------------------
+    // 1. XỬ LÝ KÊNH TIẾN (pwm_value[0])
+    // Vùng chết: Dưới 1150 coi như bằng 0 để xe không trôi
+    // ----------------------------------------------------
+    if (pwm_value[0] > 1200)
+    {
+        // Ánh xạ từ [1100 -> 1900] sang [0 -> 1000]
+        // Rút gọn phép toán: (val - 1100) * 1000 / 800  <=> (val - 1100) * 10 / 8
+        forward = ((int32_t)pwm_value[0] - 1200) * 5 / 7;
+
+        if (forward > 500) forward = 500;
+    }
+
+    // ----------------------------------------------------
+    // 2. XỬ LÝ KÊNH RẼ (pwm_value[1] - Tâm 1511)
+    // Vùng chết: Bỏ qua khoảng [1480 -> 1540] để xe đi thẳng tắp
+    // ----------------------------------------------------
+    if (pwm_value[1] > 1560 || pwm_value[1] < 1541)
+    {
+        // Ánh xạ độ lệch tâm sang dải [-1000 -> 1000]
+        // Rút gọn phép toán: (val - 1511) * 1000 / 400 <=> (val - 1511) * 10 / 4
+        steer = ((int32_t)pwm_value[1] - 1551) * 1 / 4;
+
+        if (steer > 300) steer = 300;
+        if (steer < -300) steer = -300;
+    }
+
+    // ----------------------------------------------------
+    // 3. BỘ TRỘN (MIXER) - KẾT HỢP TIẾN VÀ RẼ
+    // ----------------------------------------------------
+     left_motor  = forward + steer;
+     right_motor = forward - steer;
+
+    // Truyền vào hàm điều khiển (Hàm này đã có sẵn lệnh chặn giới hạn +-1000)
+    Control_Motors(left_motor, right_motor);
 }
 /* USER CODE END 0 */
 
@@ -210,6 +296,8 @@ int main(void)
   MX_USART3_UART_Init();
   MX_I2C1_Init();
   MX_UART4_Init();
+  MX_TIM1_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
     gps_init(&huart3);
     BNO055_Init();
@@ -241,22 +329,54 @@ int main(void)
         is_tcp_connected = Send_AT_Command("AT+CIPOPEN=0,\"TCP\",\"broker.hivemq.com\",1883\r\n", "+CIPOPEN: 0,0", 10000);
 
         if (is_tcp_connected) {
-            HAL_UART_Transmit(&huart4, (uint8_t*)"\r\n>> KET NOI TCP THANH CONG!\r\n", 28, 100);
+                    HAL_UART_Transmit(&huart4, (uint8_t*)"\r\n>> KET NOI TCP THANH CONG!\r\n", 28, 100);
 
-            HAL_Delay(1000);
+                    HAL_Delay(1000);
 
-            char at_connect_cmd[] = "AT+CIPSEND=0,14\r\n";
-            if (Send_AT_Command(at_connect_cmd, ">", 2000)) {
-                Clear_SIM_Buffer();
-                uint8_t mqtt_connect_packet[] = {0x10, 0x0C, 0x00, 0x04, 'M', 'Q', 'T', 'T', 0x04, 0x02, 0x00, 0x3C, 0x00, 0x00};
-                HAL_UART_Transmit(&huart2, mqtt_connect_packet, sizeof(mqtt_connect_packet), 1000);
+                    char at_connect_cmd[] = "AT+CIPSEND=0,14\r\n";
+                    if (Send_AT_Command(at_connect_cmd, ">", 2000)) {
+                        Clear_SIM_Buffer();
+                        uint8_t mqtt_connect_packet[] = {0x10, 0x0C, 0x00, 0x04, 'M', 'Q', 'T', 'T', 0x04, 0x02, 0x00, 0x3C, 0x00, 0x00};
+                        HAL_UART_Transmit(&huart2, mqtt_connect_packet, sizeof(mqtt_connect_packet), 1000);
 
-                // Chờ phản hồi CONNACK từ Broker
-                SIM_WaitResponse("SEND OK", 3000);
-            }
-        } else {
-            HAL_UART_Transmit(&huart4, (uint8_t*)"\r\n>> LOI: KHONG THE MO KET NOI TCP!\r\n", 35, 100);
-        }
+                        // Chờ phản hồi CONNACK từ Broker
+                        SIM_WaitResponse("SEND OK", 3000);
+                    }
+
+                    // ==========================================
+                    // THÊM MỚI: GỬI GÓI SUBSCRIBE NGAY SAU KHI CONNECT
+                    // ==========================================
+                    HAL_Delay(1000); // Chờ 1s để Broker xử lý xong lệnh Connect
+
+                    char at_sub_cmd[] = "AT+CIPSEND=0,29\r\n";
+                                if (Send_AT_Command(at_sub_cmd, ">", 2000)) {
+                                    Clear_SIM_Buffer();
+
+                                    // Gói tin Subscribe topic: lct_pbl3_rover/command (Đúng 22 ký tự)
+                                    uint8_t mqtt_sub_packet[29] = {
+                                        0x82, 0x1B,             // Cờ Subscribe (0x82) & Độ dài phần còn lại (27 bytes = 0x1B)
+                                        0x00, 0x01,             // Packet ID (1)
+                                        0x00, 0x16,             // Độ dài Topic: 22 bytes (0x16)
+                                        'l','c','t','_','p','b','l','3','_','r','o','v','e','r','/','c','o','m','m','a','n','d',
+                                        0x00                    // Requested QoS: 0
+                                    };
+
+                                    HAL_UART_Transmit(&huart2, mqtt_sub_packet, sizeof(mqtt_sub_packet), 1000);
+
+                                    // Đợi SIM đẩy dữ liệu đi
+                                    SIM_WaitResponse("SEND OK", 3000);
+
+                                    // In log ra Serial để kiểm chứng
+                                    HAL_UART_Transmit(&huart4, (uint8_t*)"\r\n>> DA SUBSCRIBE TOPIC COMMAND!\r\n", 34, 100);
+                                }
+                    // ==========================================
+
+                } else {
+                    HAL_UART_Transmit(&huart4, (uint8_t*)"\r\n>> LOI: KHONG THE MO KET NOI TCP!\r\n", 35, 100);
+                }
+        HAL_TIM_Base_Start(&htim2);
+        HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
+        HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -266,7 +386,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  gps_process();
+
 //	  if (HAL_I2C_GetState(&hi2c1) != HAL_I2C_STATE_READY) {
 //	          // Reset lại ngoại vi I2C nếu bị kẹt
 //	          HAL_I2C_DeInit(&hi2c1);
@@ -274,7 +394,7 @@ int main(void)
 //	          HAL_Delay(10);
 //	          MX_I2C1_Init();
 //	      }
-	        BNO055_ReadEuler(&yaw);
+
 //	  uint8_t bno_chip_id = 0;
 //	  HAL_StatusTypeDef i2c_status = HAL_I2C_Mem_Read(&hi2c1, (0x28 << 1), 0x00, 1, &bno_chip_id, 1, 50);
 //
@@ -295,17 +415,52 @@ int main(void)
 //	      BNO055_ReadEuler(&yaw);
 //	  }
 
-	        // Mở khóa lệnh gửi dữ liệu (chu kỳ 5 giây)
-	        // Gửi định kỳ dữ liệu mỗi 10 giây nếu kênh TCP đang mở
-	            if (is_tcp_connected && (HAL_GetTick() - last_telemetry_time >= 10000)) {
-	                last_telemetry_time = HAL_GetTick();
+	  gps_process();
+	  BNO055_ReadEuler(&yaw);
+	  if (gps_data.satellites >= 5) {
 
-//	                float sim_lat = gps_data.latitude;
-//	                float sim_lng = gps_data.longitude;
+	            double raw_lat = (double)gps_data.latitude;
+	            double raw_lng = (double)gps_data.longitude;
 
-	                // Đổi từ MQTT_Publish_Telemetry thành TCP_Publish_Telemetry
-	                TCP_Publish_Telemetry(gps_data.latitude, gps_data.longitude, bat_level, gps_data.speed_mps, rover_status, yaw);
+	            // Nếu là lần đầu tiên bắt được GPS (biến vẫn = 0), gán thẳng giá trị
+	            if (filtered_lat == 0.0 && raw_lat != 0.0) {
+	                filtered_lat = raw_lat;
+	                filtered_lng = raw_lng;
 	            }
+	            else if (raw_lat != 0.0) {
+	                // Lớp 2: Lọc chết (Khi xe đứng im thì đóng băng tọa độ, không cho nhảy lung tung)
+	                if (strcmp(rover_status, "IDLE") == 0 || strcmp(rover_status, "STOP") == 0) {
+	                    // Xe đang dừng -> Không làm gì cả, giữ nguyên biến filtered_lat/lng cũ
+	                }
+	                // Lớp 3: Lọc trung bình động (Khi xe đang chạy)
+	                else {
+	                    // Lấy 80% tọa độ cũ + 20% tọa độ mới -> Đường đi sẽ mượt và thẳng tắp
+	                    filtered_lat = (filtered_lat * 0.5) + (raw_lat * 0.5);
+	                    filtered_lng = (filtered_lng * 0.5) + (raw_lng * 0.5);
+	                }
+	            }
+	        }
+
+	        // ==========================================
+	        // GỬI TELEMETRY (Cập nhật 2 giây / lần)
+	        // ==========================================
+	        // Chú ý: Đổi 10000 thành 2000 để bản đồ trên Web mượt hơn
+	        if (is_tcp_connected && (HAL_GetTick() - last_telemetry_time >= 500)) {
+	            last_telemetry_time = HAL_GetTick();
+
+	            // Kiểm tra xem đã có tọa độ hợp lệ chưa thì mới gửi
+	            if (filtered_lat != 0.0 && filtered_lng != 0.0) {
+	                TCP_Publish_Telemetry(
+	                    (double)filtered_lat,                  // Dùng tọa độ ĐÃ LỌC
+	                    (double)filtered_lng,                  // Dùng tọa độ ĐÃ LỌC
+	                    (uint8_t)bat_level,
+	                    (float)gps_data.speed_mps,
+	                    rover_status,
+	                    (float)yaw
+	                );
+	            }
+	        }
+	        Update_Robot_Motion();
   }
   /* USER CODE END 3 */
 }
@@ -385,51 +540,101 @@ void SystemClock_Config(void)
 //        __HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);
 //    }
 //}
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+    // Cấu hình cho Kênh 1 (Ví dụ cắm vào PC5)
+    if(GPIO_Pin == GPIO_PIN_5)
+    {
+        if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_5) == GPIO_PIN_SET) // Sườn Lên
+        {
+            start_time[0] = __HAL_TIM_GET_COUNTER(&htim2);
+        }
+        else // Sườn Xuống
+        {
+            pwm_value[0] = __HAL_TIM_GET_COUNTER(&htim2) - start_time[0];
+        }
+    }
+
+    // Cấu hình cho Kênh 2 (Ví dụ cắm vào PB1)
+    else if(GPIO_Pin == GPIO_PIN_1)
+    {
+        if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_1) == GPIO_PIN_SET)
+        {
+            start_time[1] = __HAL_TIM_GET_COUNTER(&htim2);
+        }
+        else
+        {
+            pwm_value[1] = __HAL_TIM_GET_COUNTER(&htim2) - start_time[1];
+        }
+    }
+
+    // ... Bạn copy logic tương tự cho các kênh 3, 4, 5, 6 tương ứng với các chân khác
+}
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
     GPS_UART_RxEventCallback(huart, Size);
 
-    if (huart->Instance == USART2) {
+    /* USER CODE BEGIN 4 */
+        if (huart->Instance == USART2) {
+
+            // ========================================================
+            // "VŨ KHÍ BÍ MẬT": QUÉT BỎ BYTE 0x00 ĐỂ STRSTR() KHÔNG BỊ MÙ
+            // ========================================================
+            for(uint16_t i = 0; i < Size; i++) {
+                if(rx_sim_buffer[i] == 0x00) {
+                    rx_sim_buffer[i] = ' '; // Đổi byte Null thành dấu cách
+                }
+            }
+            // Chốt chặn Null cuối cùng cho an toàn
             rx_sim_buffer[Size < sizeof(rx_sim_buffer) ? Size : (sizeof(rx_sim_buffer) - 1)] = '\0';
 
-            // 1. Nhận lệnh xóa lộ trình cũ
+            // 1. Nhận lệnh xóa lộ trình
             if (strstr((char*)rx_sim_buffer, "\"cmd\":\"CLEAR_MISSION\"") != NULL) {
                 total_waypoints = 0;
                 HAL_UART_Transmit(&huart4, (uint8_t*)"\r\n>> DA XOA LO TRINH CU\r\n", 25, 100);
             }
 
-            // 2. Nhận lệnh thêm điểm mới (Bóc tách chuỗi JSON thô)
+            // 2. Nhận lệnh thêm WP
             else if (strstr((char*)rx_sim_buffer, "\"cmd\":\"ADD_WP\"") != NULL) {
-                if (total_waypoints < MAX_WAYPOINTS) {
-                    // Tìm vị trí của các từ khóa lat, lng, stop
-                    char *lat_p = strstr((char*)rx_sim_buffer, "\"lat\":");
-                    char *lng_p = strstr((char*)rx_sim_buffer, "\"lng\":");
-                    char *stop_p = strstr((char*)rx_sim_buffer, "\"stop\":");
 
-                    if (lat_p && lng_p && stop_p) {
-                        double p_lat = 0, p_lng = 0;
-                        int p_stop = 0;
+                        if (total_waypoints < MAX_WAYPOINTS) {
 
-                        // Quét các con số ngay sau từ khóa (Lưu ý dấu phẩy trong JSON sẽ tự động làm hàm quét dừng lại)
-                        sscanf(lat_p, "\"lat\":%lf", &p_lat);
-                        sscanf(lng_p, "\"lng\":%lf", &p_lng);
-                        sscanf(stop_p, "\"stop\":%d", &p_stop);
+                            char *lat_p = strstr((char*)rx_sim_buffer, "\"lat\":");
+                            char *lng_p = strstr((char*)rx_sim_buffer, "\"lng\":");
+                            char *stop_p = strstr((char*)rx_sim_buffer, "\"stop\":");
 
-                        // Lưu vào mảng Struct
-                        rover_mission[total_waypoints].lat = p_lat;
-                        rover_mission[total_waypoints].lng = p_lng;
-                        rover_mission[total_waypoints].stop_time = p_stop;
-                        total_waypoints++;
+                            if (lat_p != NULL && lng_p != NULL && stop_p != NULL) {
 
-                        // In ra Serial xem để kiểm tra
-                        char dbg[80];
-                        sprintf(dbg, "\r\n>> DA NHAN WP %d: Lat=%.6f, Lng=%.6f\r\n", total_waypoints, p_lat, p_lng);
-                        HAL_UART_Transmit(&huart4, (uint8_t*)dbg, strlen(dbg), 100);
+                                // THỦ THUẬT: Bỏ qua các ký tự từ khóa để trỏ thẳng vào con số
+                                // Từ khóa "\"lat\":" dài 6 ký tự -> cộng 6
+                                // Hàm atof() sẽ tự động đọc con số và dừng lại ngay khi gặp dấu phẩy của JSON
+                                double p_lat = atof(lat_p + 6);
+
+                                // Từ khóa "\"lng\":" dài 6 ký tự -> cộng 6
+                                double p_lng = atof(lng_p + 6);
+
+                                // Từ khóa "\"stop\":" dài 7 ký tự -> cộng 7. Dùng atoi để lấy số nguyên
+                                int p_stop = atoi(stop_p + 7);
+
+                                // Lưu vào mảng Struct lộ trình
+                                rover_mission[total_waypoints].lat = p_lat;
+                                rover_mission[total_waypoints].lng = p_lng;
+                                rover_mission[total_waypoints].stop_time = p_stop;
+
+                                total_waypoints++;
+
+                                // In ra Serial (UART4) để kiểm tra
+                                char dbg[100];
+                                sprintf(dbg, "\r\n>> DA NHAN WP %d: Lat=%.8f, Lng=%.8f, Stop=%d(s)\r\n",
+                                        total_waypoints, p_lat, p_lng, p_stop);
+                                HAL_UART_Transmit(&huart4, (uint8_t*)dbg, strlen(dbg), 100);
+                            }
+                        } else {
+                            HAL_UART_Transmit(&huart4, (uint8_t*)"\r\n>> LOI: BO NHO WAYPOINT DA DAY!\r\n", 35, 100);
+                        }
                     }
-                }
-            }
 
-            // 3. Các lệnh điều khiển cũ (START, STOP, RTL...)
+            // 3. Các lệnh điều khiển
             else if (strstr((char*)rx_sim_buffer, "\"cmd\":\"START\"") != NULL) {
                 strcpy(rover_status, "MOVING");
                 HAL_UART_Transmit(&huart4, (uint8_t*)"\r\n>> LENH: START\r\n", 18, 100);
@@ -442,7 +647,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
             // Bật lại DMA đón tin mới
             HAL_UARTEx_ReceiveToIdle_DMA(&huart2, rx_sim_buffer, sizeof(rx_sim_buffer));
             __HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);
-        }
+    }
 }
 /* USER CODE END 4 */
 
