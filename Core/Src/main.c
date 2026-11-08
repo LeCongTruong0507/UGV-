@@ -26,12 +26,13 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "gps.h"
+#include "gps_ubx.h"
 #include "BNO055.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdint.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -41,6 +42,7 @@ typedef struct {
     double lng;
     int stop_time;
 } Waypoint_t;
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -83,6 +85,8 @@ uint16_t pwm_value[6];
 
 int16_t left_motor  = 0;
 int16_t right_motor = 0;
+
+uint8_t rx_gps_byte;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -98,6 +102,7 @@ void Control_Motors(int16_t speed1, int16_t speed2);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
 void Clear_SIM_Buffer(void) {
     HAL_UART_AbortReceive(&huart2);
     __HAL_UART_CLEAR_OREFLAG(&huart2);
@@ -299,7 +304,9 @@ int main(void)
   MX_TIM1_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-    gps_init(&huart3);
+//    gps_init(&huart3);
+    UBX_Init();
+    HAL_UART_Receive_IT(&huart3, &rx_gps_byte, 1);
     BNO055_Init();
 
     // Bật DMA nhận dữ liệu từ SIM
@@ -307,7 +314,7 @@ int main(void)
       __HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);
 
       HAL_UART_Transmit(&huart4, (uint8_t*)"\r\n=== KHOI DONG MODULE SIM (TCP MODE) ===\r\n", 42, 100);
-      HAL_Delay(15000); // Chờ SIM bắt sóng 4G
+      HAL_Delay(4000); // Chờ SIM bắt sóng 4G
 
       Send_AT_Command("AT\r\n", "OK", 1000);
       Send_AT_Command("ATE0\r\n", "OK", 1000);
@@ -415,9 +422,9 @@ int main(void)
 //	      BNO055_ReadEuler(&yaw);
 //	  }
 
-	  gps_process();
+//	  gps_process();
 	  BNO055_ReadEuler(&yaw);
-	  if (gps_data.satellites >= 5) {
+/*	  if (gps_data.satellites >= 5) {
 
 	            double raw_lat = (double)gps_data.latitude;
 	            double raw_lng = (double)gps_data.longitude;
@@ -435,11 +442,11 @@ int main(void)
 	                // Lớp 3: Lọc trung bình động (Khi xe đang chạy)
 	                else {
 	                    // Lấy 80% tọa độ cũ + 20% tọa độ mới -> Đường đi sẽ mượt và thẳng tắp
-	                    filtered_lat = (filtered_lat * 0.5) + (raw_lat * 0.5);
-	                    filtered_lng = (filtered_lng * 0.5) + (raw_lng * 0.5);
+	                    filtered_lat = (filtered_lat * 0.7) + (raw_lat * 0.3);
+	                    filtered_lng = (filtered_lng * 0.7) + (raw_lng * 0.3);
 	                }
 	            }
-	        }
+	        }*/
 
 	        // ==========================================
 	        // GỬI TELEMETRY (Cập nhật 2 giây / lần)
@@ -454,7 +461,7 @@ int main(void)
 	                    (double)filtered_lat,                  // Dùng tọa độ ĐÃ LỌC
 	                    (double)filtered_lng,                  // Dùng tọa độ ĐÃ LỌC
 	                    (uint8_t)bat_level,
-	                    (float)gps_data.speed_mps,
+	                    2.0f,
 	                    rover_status,
 	                    (float)yaw
 	                );
@@ -572,9 +579,21 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 }
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
-    GPS_UART_RxEventCallback(huart, Size);
+//    GPS_UART_RxEventCallback(huart, Size);
+	    if (huart->Instance == USART3) {
 
-    /* USER CODE BEGIN 4 */
+	        // Quăng byte vừa nhận vào thư viện phân giải
+	        if (UBX_ProcessByte(rx_gps_byte)) {
+	            // Khi IF này đúng = Đã nhận xong 1 tọa độ mới hoàn chỉnh (chu kỳ 500ms)
+	            // Bạn có thể bật 1 cờ (flag) ở đây để main() biết mà truyền MQTT qua mạch 4G A7600C
+
+	            // Hoặc có thể lấy dùng ngay:
+	            // if (ugv_fix >= 3) { ... tiến hành chạy thuật toán bám đường ... }
+	        }
+
+	        // Kích hoạt ngắt để nhận byte tiếp theo
+	        HAL_UART_Receive_IT(&huart3, &rx_gps_byte, 1);
+	    }
         if (huart->Instance == USART2) {
 
             // ========================================================
