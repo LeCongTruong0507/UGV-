@@ -30,6 +30,15 @@ extern I2C_HandleTypeDef hi2c1;
 #define CONFIG_MODE 0x00
 #define NDOF_MODE   0x0C
 
+#define BNO055_CALIB_STAT   0x35  // Thanh ghi kiểm tra trạng thái hiệu chuẩn
+#define BNO055_CALIB_DATA   0x55  // Bắt đầu 22 byte dữ liệu hiệu chuẩn
+
+#define BNO055_CALIB_DATA   0x55
+
+void BNO055_WriteCalibProfile(uint8_t *buffer);
+uint8_t BNO055_GetCalibStatus(void);
+void BNO055_ReadCalibProfile(uint8_t *buffer);
+void BNO055_WriteCalibProfile(uint8_t *buffer);
 void BNO055_Init(void);
 void BNO055_ReadEuler(float *yaw);
 void BNO055_ReadGyro(float *gx, float *gy, float *gz);
