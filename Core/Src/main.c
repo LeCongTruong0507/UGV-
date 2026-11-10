@@ -28,6 +28,7 @@
 /* USER CODE BEGIN Includes */
 #include "gps_ubx.h"
 #include "BNO055.h"
+#include "ugv_nav.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -37,11 +38,6 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-typedef struct {
-    double lat;
-    double lng;
-    int stop_time;
-} Waypoint_t;
 
 /* USER CODE END PTD */
 
@@ -215,6 +211,11 @@ void Control_Motors(int16_t speed1, int16_t speed2)
 }
 void Update_Robot_Motion(void)
 {
+	if (pwm_value[0] < 900 || pwm_value[1] < 900 || pwm_value[2] < 900)
+	    {
+	        Control_Motors(0, 0);
+	        return;
+	    }
     int32_t forward = 0;
     int32_t steer = 0;
     if (pwm_value[0] > 1200)
@@ -358,28 +359,14 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 	  BNO055_ReadEuler(&yaw);
-	  gps_process();
-
-/*	  if (gps_data.satellites >= 5) {
-
-	            double raw_lat = (double)gps_data.latitude;
-	            double raw_lng = (double)gps_data.longitude;
-
-	            // nếu là lần đầu tiên bắt được GPS (biến vẫn = 0), gán thẳng giá trị
-	            if (filtered_lat == 0.0 && raw_lat != 0.0) {
-	                filtered_lat = raw_lat;
-	                filtered_lng = raw_lng;
+	  if (strcmp(rover_status, "MOVING") == 0) {
+//	            if (ugv_fix == 3) {
+                if (1) {
+	                UGV_Auto_Drive();
 	            }
-	            else if (raw_lat != 0.0) {
-	                if (strcmp(rover_status, "IDLE") == 0 || strcmp(rover_status, "STOP") == 0) {
-
-	                }
-	                else {
-	                    filtered_lat = (filtered_lat * 0.7) + (raw_lat * 0.3);
-	                    filtered_lng = (filtered_lng * 0.7) + (raw_lng * 0.3);
-	                }
-	            }
-	        }  */
+	        } else {
+	            Update_Robot_Motion();
+	        }
 
 	        if (is_tcp_connected && (HAL_GetTick() - last_telemetry_time >= 500)) {
 	            last_telemetry_time = HAL_GetTick();
@@ -506,6 +493,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 
             if (strstr((char*)rx_sim_buffer, "\"cmd\":\"CLEAR_MISSION\"") != NULL) {
                 total_waypoints = 0;
+                current_wp_index = 0;
                 HAL_UART_Transmit(&huart4, (uint8_t*)"\r\n>> DA XOA LO TRINH CU\r\n", 25, 100);
             }
             else if (strstr((char*)rx_sim_buffer, "\"cmd\":\"ADD_WP\"") != NULL) {
