@@ -96,7 +96,6 @@ void BNO055_ReadGyro(float *gx, float *gy, float *gz)
     uint8_t buf[6];
     int16_t raw_x, raw_y, raw_z;
 
-    // Đọc 6 byte gyro
     bno055_read(BNO055_GYRO_DATA_X_LSB, buf, 6);
 
     // LITTLE-ENDIAN

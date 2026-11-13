@@ -9,6 +9,10 @@ RM := rm -rf
 
 # All of the sources participating in the build are defined here
 -include sources.mk
+-include Middlewares/Third_Party/FreeRTOS/Source/portable/MemMang/subdir.mk
+-include Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F/subdir.mk
+-include Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/subdir.mk
+-include Middlewares/Third_Party/FreeRTOS/Source/subdir.mk
 -include Drivers/STM32F4xx_HAL_Driver/Src/subdir.mk
 -include Core/Startup/subdir.mk
 -include Core/Src/subdir.mk
@@ -34,34 +38,34 @@ $(wildcard ../makefile.init) \
 $(wildcard ../makefile.targets) \
 
 
-BUILD_ARTIFACT_NAME := ROBOT_PBL3_GIAO_HANG
+BUILD_ARTIFACT_NAME := ROBOT_PBL3_V2_FreeRTOS
 BUILD_ARTIFACT_EXTENSION := elf
 BUILD_ARTIFACT_PREFIX :=
 BUILD_ARTIFACT := $(BUILD_ARTIFACT_PREFIX)$(BUILD_ARTIFACT_NAME)$(if $(BUILD_ARTIFACT_EXTENSION),.$(BUILD_ARTIFACT_EXTENSION),)
 
 # Add inputs and outputs from these tool invocations to the build variables 
 EXECUTABLES += \
-ROBOT_PBL3_GIAO_HANG.elf \
+ROBOT_PBL3_V2_FreeRTOS.elf \
 
 MAP_FILES += \
-ROBOT_PBL3_GIAO_HANG.map \
+ROBOT_PBL3_V2_FreeRTOS.map \
 
 SIZE_OUTPUT += \
 default.size.stdout \
 
 OBJDUMP_LIST += \
-ROBOT_PBL3_GIAO_HANG.list \
+ROBOT_PBL3_V2_FreeRTOS.list \
 
 
 # All Target
 all: main-build
 
 # Main-build Target
-main-build: ROBOT_PBL3_GIAO_HANG.elf secondary-outputs
+main-build: ROBOT_PBL3_V2_FreeRTOS.elf secondary-outputs
 
 # Tool invocations
-ROBOT_PBL3_GIAO_HANG.elf ROBOT_PBL3_GIAO_HANG.map: $(OBJS) $(USER_OBJS) C:\Users\Asus\STM32CubeIDE\workspace_2.2.0\ROBOT_PBL3_GIAO_HANG\STM32F407VETX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "ROBOT_PBL3_GIAO_HANG.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\Asus\STM32CubeIDE\workspace_2.2.0\ROBOT_PBL3_GIAO_HANG\STM32F407VETX_FLASH.ld" --specs=nosys.specs -Wl,-Map="ROBOT_PBL3_GIAO_HANG.map" -Wl,--gc-sections -static -u _printf_float --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+ROBOT_PBL3_V2_FreeRTOS.elf ROBOT_PBL3_V2_FreeRTOS.map: $(OBJS) $(USER_OBJS) C:\Users\Asus\STM32CubeIDE\workspace_2.2.0\ROBOT_PBL3_V2_FreeRTOS\STM32F407VETX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "ROBOT_PBL3_V2_FreeRTOS.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\Asus\STM32CubeIDE\workspace_2.2.0\ROBOT_PBL3_V2_FreeRTOS\STM32F407VETX_FLASH.ld" --specs=nosys.specs -Wl,-Map="ROBOT_PBL3_V2_FreeRTOS.map" -Wl,--gc-sections -static -u _printf_float --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
@@ -70,14 +74,14 @@ default.size.stdout: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
 	@echo 'Finished building: $@'
 	@echo ' '
 
-ROBOT_PBL3_GIAO_HANG.list: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-objdump -h -S $(EXECUTABLES) > "ROBOT_PBL3_GIAO_HANG.list"
+ROBOT_PBL3_V2_FreeRTOS.list: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-objdump -h -S $(EXECUTABLES) > "ROBOT_PBL3_V2_FreeRTOS.list"
 	@echo 'Finished building: $@'
 	@echo ' '
 
 # Other Targets
 clean:
-	-$(RM) ROBOT_PBL3_GIAO_HANG.elf ROBOT_PBL3_GIAO_HANG.list ROBOT_PBL3_GIAO_HANG.map default.size.stdout
+	-$(RM) ROBOT_PBL3_V2_FreeRTOS.elf ROBOT_PBL3_V2_FreeRTOS.list ROBOT_PBL3_V2_FreeRTOS.map default.size.stdout
 	-@echo ' '
 
 secondary-outputs: $(SIZE_OUTPUT) $(OBJDUMP_LIST)

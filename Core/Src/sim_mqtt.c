@@ -6,6 +6,7 @@
  */
 
 #include "sim_mqtt.h"
+#include "cmsis_os.h"
 
 extern UART_HandleTypeDef huart2;
 extern UART_HandleTypeDef huart4;
@@ -29,6 +30,7 @@ bool SIM_WaitResponse(const char* expected_response, uint32_t timeout_ms) {
         if (strstr((char*)rx_sim_buffer, expected_response) != NULL) {
             return true;
         }
+        osDelay(1);
     }
     return false;
 }
@@ -41,7 +43,7 @@ bool Send_AT_Command(char *cmd, const char *expected_response, uint32_t timeout_
     HAL_UART_Transmit(&huart2, (uint8_t*)cmd, strlen(cmd), 1000);
 
     if (expected_response == NULL) {
-        HAL_Delay(timeout_ms);
+    	osDelay(timeout_ms);
         return true;
     }
 

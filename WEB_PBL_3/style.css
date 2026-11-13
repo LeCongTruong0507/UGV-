@@ -1,6 +1,6 @@
 body {
-  background-color: #0f172a;
-  color: #f8fafc;
+  background-color: #f8fafc;
+  color: #0f172a;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
@@ -15,16 +15,21 @@ body {
   width: 6px;
 }
 
+.custom-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 .custom-scroll::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #cbd5e1;
   border-radius: 3px;
 }
 
-/* Tùy chỉnh bảng chọn lớp bản đồ (Leaflet Layer Control) sang Dark Mode */
+/* Tùy chỉnh bảng chọn lớp bản đồ (Leaflet Layer Control) sang Light Mode */
 .leaflet-control-layers {
-  background: #1e293b !important;
-  color: #f8fafc !important;
-  border: 1px solid #334155 !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
   border-radius: 8px !important;
   padding: 4px 8px !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
 }

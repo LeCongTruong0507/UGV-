@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "cmsis_os.h"
 #include "dma.h"
 #include "i2c.h"
 #include "tim.h"
@@ -95,13 +96,9 @@ uint8_t bat_level;
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
+void MX_FREERTOS_Init(void);
 /* USER CODE BEGIN PFP */
-bool SIM_WaitResponse(const char* expected_response, uint32_t timeout_ms);
-void Clear_SIM_Buffer(void);
-bool Send_AT_Command(char *cmd, const char *expected_response, uint32_t timeout_ms);
-void TCP_Publish_Telemetry(double lat, double lng, uint8_t bat, float spd, const char *status, float yaw_angle);
-void Update_Robot_Motion(void);
-void Control_Motors(int16_t speed1, int16_t speed2);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -147,20 +144,28 @@ int main(void)
   MX_TIM2_Init();
   MX_I2C3_Init();
   /* USER CODE BEGIN 2 */
-//    gps_init(&huart3);
     UBX_Init();
     HAL_UART_Receive_IT(&huart3, &rx_gps_byte, 1);
     BNO055_Init();
     INA219_Init(&hi2c3);
+
     HAL_UARTEx_ReceiveToIdle_DMA(&huart2, rx_sim_buffer, sizeof(rx_sim_buffer));
-      __HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);
+    __HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);
 
-        Sim_Init();
+    Sim_Init();
 
-        HAL_TIM_Base_Start(&htim2);
-        HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
-        HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
+    HAL_TIM_Base_Start(&htim2);
+    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
+    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
   /* USER CODE END 2 */
+
+  /* Call init function for freertos objects (in cmsis_os2.c) */
+  MX_FREERTOS_Init();
+
+  /* Start scheduler */
+  osKernelStart();
+
+  /* We should never get here as control is now taken by the scheduler */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -169,32 +174,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  BNO055_ReadEuler(&yaw);
-	  if (strcmp(rover_status, "MOVING") == 0) {
-	            if (ugv_fix == 3) {
-	                UGV_Auto_Drive();
-	            }
-	        } else {
-	            Update_Robot_Motion();
-	        }
-
-	        if (is_tcp_connected && (HAL_GetTick() - last_telemetry_time >= 500)) {
-	            last_telemetry_time = HAL_GetTick();
-	                 float voltage = INA219_GetBusVoltage_V();
-	                      float bat_percent = ((voltage - 7.4f) / (12.6f - 7.4f)) * 100.0f; // lipo 3S
-	                      if (bat_percent > 100.0f) bat_percent = 100.0f;
-	                      if (bat_percent < 0.0f) bat_percent = 0.0f;
-	                      bat_level = (uint8_t)bat_percent;
-
-	                TCP_Publish_Telemetry(
-	                    (double)ugv_lat,
-	                    (double)ugv_lon,
-	                    (uint8_t)bat_level,
-						(float)ugv_speed,
-	                    rover_status,
-	                    (float)yaw
-	                );
-	        }
   }
   /* USER CODE END 3 */
 }
@@ -351,6 +330,28 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
     }
 }
 /* USER CODE END 4 */
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM6 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM6)
+  {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.

@@ -1,0 +1,4 @@
+../Core/Src/freertos.c:84:6:vApplicationGetIdleTaskMemory	1
+../Core/Src/freertos.c:98:6:MX_FREERTOS_Init	1
+../Core/Src/freertos.c:141:6:StartTask_Motion	3
+../Core/Src/freertos.c:169:6:StartTask_Telemetry	4

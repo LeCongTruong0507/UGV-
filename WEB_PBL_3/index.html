@@ -15,14 +15,14 @@
   <!-- Liên kết tới file style.css của bạn -->
   <link rel="stylesheet" href="style.css">
 </head>
-<body class="overflow-hidden flex flex-col h-screen">
+<body class="overflow-hidden flex flex-col h-screen bg-slate-50">
 
   <!-- TOP TELEMETRY BAR -->
-  <header class="h-16 bg-slate-900 border-b border-slate-800 px-6 flex items-center justify-between z-10">
+  <header class="h-16 bg-white border-b border-slate-200 shadow-sm px-6 flex items-center justify-between z-10">
     <div class="flex items-center space-x-3">
-      <i class="fa-solid fa-truck-fast text-emerald-400 text-2xl"></i>
-      <h1 class="text-lg font-bold tracking-wider uppercase text-slate-100">ROBOT GIAO HANG - PBL3</h1>
-      <span id="mqtt-status" class="px-2.5 py-0.5 text-xs font-medium rounded-full bg-red-500/20 text-red-400 border border-red-500/30">
+      <i class="fa-solid fa-truck-fast text-emerald-600 text-2xl"></i>
+      <h1 class="text-lg font-bold tracking-wider uppercase text-slate-800">ROBOT GIAO HANG - PBL3</h1>
+      <span id="mqtt-status" class="px-2.5 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-600 border border-red-200">
         <i class="fa-solid fa-circle text-[8px] mr-1"></i> Disconnected
       </span>
     </div>
@@ -30,38 +30,46 @@
     <!-- Thông số trạng thái xe -->
     <div class="flex items-center space-x-8 text-sm">
       <div class="flex items-center space-x-2">
-        <i class="fa-solid fa-satellite-dish text-sky-400"></i>
+        <i class="fa-solid fa-satellite-dish text-sky-500"></i>
         <div>
-          <p class="text-xs text-slate-400">Trạng thái</p>
-          <p id="val-status" class="font-semibold text-sky-400">IDLE</p>
+          <p class="text-xs text-slate-500">Trạng thái</p>
+          <p id="val-status" class="font-semibold text-sky-600">IDLE</p>
         </div>
       </div>
 
       <div class="flex items-center space-x-2">
-        <i class="fa-solid fa-location-crosshairs text-purple-400"></i>
+        <i class="fa-solid fa-location-crosshairs text-purple-500"></i>
         <div>
-          <p class="text-xs text-slate-400">Tọa độ (GPS 4G)</p>
-          <p id="val-gps" class="font-mono font-semibold text-[11px] sm:text-xs">16.07480000, 108.15100000</p>
+          <p class="text-xs text-slate-500">Tọa độ (GPS 4G)</p>
+          <p id="val-gps" class="font-mono font-semibold text-[11px] sm:text-xs text-slate-700">16.07480000, 108.15100000</p>
         </div>
       </div>
 
       <div class="flex items-center space-x-2">
-        <i class="fa-solid fa-gauge-high text-amber-400"></i>
+        <i class="fa-solid fa-gauge-high text-amber-500"></i>
         <div>
-          <p class="text-xs text-slate-400">Tốc độ hiện tại</p>
-          <p class="font-semibold"><span id="val-speed">0.0</span> m/s</p>
+          <p class="text-xs text-slate-500">Tốc độ hiện tại</p>
+          <p class="font-semibold text-slate-700"><span id="val-speed">0.0</span> m/s</p>
         </div>
       </div>
 
+      <!-- Khối hiển thị góc Yaw -->
       <div class="flex items-center space-x-2">
-        <i class="fa-solid fa-battery-three-quarters text-emerald-400 text-lg"></i>
+        <i class="fa-solid fa-compass text-rose-500 text-lg"></i>
+        <div>
+          <p class="text-xs text-slate-500">Góc hướng (Yaw)</p>
+          <p class="font-semibold text-slate-700"><span id="val-yaw">0.0</span>°</p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-2">
+        <i class="fa-solid fa-battery-three-quarters text-emerald-500 text-lg"></i>
         <div class="w-28">
           <div class="flex justify-between text-xs mb-1">
-            <span class="text-slate-400">Pin</span>
-            <span id="val-bat" class="font-bold text-emerald-400">85%</span>
+            <span class="text-slate-500">Pin</span>
+            <span id="val-bat" class="font-bold text-emerald-600">85%</span>
           </div>
-          <div class="w-full bg-slate-700 h-2 rounded-full overflow-hidden">
-            <div id="bar-bat" class="bg-emerald-400 h-full transition-all duration-300" style="width: 85%"></div>
+          <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+            <div id="bar-bat" class="bg-emerald-500 h-full transition-all duration-300" style="width: 85%"></div>
           </div>
         </div>
       </div>
@@ -74,65 +82,64 @@
     <!-- BẢN ĐỒ KHUÔN VIÊN TRƯỜNG -->
     <div class="flex-1 relative">
       <div id="map"></div>
-      <div class="absolute bottom-5 left-5 z-[500] bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded-lg shadow-lg text-xs space-y-1">
-        <p class="font-semibold text-slate-200"><i class="fa-solid fa-hand-pointer text-emerald-400 mr-1"></i> Hướng dẫn:</p>
-        <p class="text-slate-400">- Click lên bản đồ để thêm điểm giao hàng (Waypoint).</p>
-        <p class="text-slate-400">- Chỉnh thời gian xe dừng chờ nhận hàng ở bảng bên phải.</p>
+      <div class="absolute bottom-5 left-5 z-[500] bg-white/90 backdrop-blur border border-slate-200 p-3 rounded-lg shadow-lg text-xs space-y-1">
+        <p class="font-semibold text-slate-800"><i class="fa-solid fa-hand-pointer text-emerald-600 mr-1"></i> Hướng dẫn:</p>
+        <p class="text-slate-600">- Click lên bản đồ để thêm điểm giao hàng (Waypoint).</p>
+        <p class="text-slate-600">- Chỉnh thời gian xe dừng chờ nhận hàng ở bảng bên phải.</p>
       </div>
     </div>
 
     <!-- SIDEBAR ĐIỀU KHIỂN -->
-    <aside class="w-96 bg-slate-900 border-l border-slate-800 flex flex-col z-10">
+    <aside class="w-96 bg-white border-l border-slate-200 flex flex-col z-10">
       
       <!-- 1. Cấu hình HiveMQ Public Broker -->
-      <div class="p-4 border-b border-slate-800">
+      <div class="p-4 border-b border-slate-200">
         <div class="flex justify-between items-center mb-2">
-          <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400"><i class="fa-solid fa-cloud mr-1"></i> Cấu hình Broker</h2>
-          <button onclick="toggleMqttConfig()" class="text-xs text-sky-400 hover:underline">Ẩn/Hiện</button>
+          <h2 class="text-xs font-bold uppercase tracking-wider text-slate-500"><i class="fa-solid fa-cloud mr-1"></i> Cấu hình Broker</h2>
+          <button onclick="toggleMqttConfig()" class="text-xs text-sky-600 hover:underline">Ẩn/Hiện</button>
         </div>
         <div id="mqtt-config" class="space-y-2 text-xs">
-          <!-- Thay thế bằng Address của HiveMQ Public -->
           <input id="mqtt-host" type="text" placeholder="Broker URL" 
                  value="ws://broker.hivemq.com:8000/mqtt" 
-                 class="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500">
+                 class="w-full bg-slate-50 border border-slate-300 rounded px-2.5 py-1.5 text-slate-700 focus:outline-none focus:border-sky-500">
           
-          <div class="bg-slate-800 border border-slate-700 rounded px-2.5 py-2 text-slate-400 text-center italic text-xs">
+          <div class="bg-slate-50 border border-slate-200 rounded px-2.5 py-2 text-slate-500 text-center italic text-xs">
             Public Broker - Không yêu cầu Username & Password
           </div>
 
-          <button onclick="connectMQTT()" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-semibold py-1.5 rounded transition">
+          <button onclick="connectMQTT()" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-semibold py-1.5 rounded transition shadow-sm">
             Kết nối Broker
           </button>
         </div>
       </div>
 
       <!-- 2. Điều khiển tốc độ & Lệnh nhanh -->
-      <div class="p-4 border-b border-slate-800 space-y-3">
-        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400"><i class="fa-solid fa-sliders mr-1"></i> Điều khiển Tốc độ & Lệnh</h2>
+      <div class="p-4 border-b border-slate-200 space-y-3 bg-slate-50/50">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-500"><i class="fa-solid fa-sliders mr-1"></i> Điều khiển Tốc độ & Lệnh</h2>
         
         <div>
           <div class="flex justify-between text-xs mb-1">
-            <span>Tốc độ đặt (Target Speed):</span>
-            <span class="font-bold text-amber-400"><span id="lbl-target-speed">1.5</span> m/s</span>
+            <span class="text-slate-600">Tốc độ đặt (Target Speed):</span>
+            <span class="font-bold text-amber-600"><span id="lbl-target-speed">1.5</span> m/s</span>
           </div>
           <div class="flex items-center space-x-2">
             <input id="rng-speed" type="range" min="0.5" max="5.0" step="0.1" value="1.5" 
                    oninput="document.getElementById('lbl-target-speed').innerText = this.value"
-                   class="flex-1 accent-amber-400 cursor-pointer">
-            <button onclick="sendSpeedCommand()" class="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-xs px-3 py-1 rounded font-semibold transition">
+                   class="flex-1 accent-amber-500 cursor-pointer">
+            <button onclick="sendSpeedCommand()" class="bg-amber-100 hover:bg-amber-200 text-amber-700 border border-amber-200 text-xs px-3 py-1 rounded font-semibold transition">
               Set Speed
             </button>
           </div>
         </div>
 
         <div class="grid grid-cols-3 gap-2 pt-1">
-          <button onclick="sendQuickCmd('START')" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2 rounded transition">
+          <button onclick="sendQuickCmd('START')" class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold py-2 rounded shadow-sm transition">
             <i class="fa-solid fa-play mr-1"></i> CHẠY
           </button>
-          <button onclick="sendQuickCmd('STOP')" class="bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold py-2 rounded transition">
+          <button onclick="sendQuickCmd('STOP')" class="bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold py-2 rounded shadow-sm transition">
             <i class="fa-solid fa-hand mr-1"></i> DỪNG KHẨN
           </button>
-          <button onclick="sendQuickCmd('RTL')" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2 rounded transition">
+          <button onclick="sendQuickCmd('RTL')" class="bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-bold py-2 rounded shadow-sm transition">
             <i class="fa-solid fa-house mr-1"></i> VỀ TRẠM
           </button>
         </div>
@@ -141,10 +148,10 @@
       <!-- 3. Danh sách Waypoint -->
       <div class="flex-1 flex flex-col overflow-hidden p-4">
         <div class="flex justify-between items-center mb-3">
-          <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">
+          <h2 class="text-xs font-bold uppercase tracking-wider text-slate-500">
             <i class="fa-solid fa-route mr-1"></i> Danh sách điểm giao (<span id="wp-count">0</span>)
           </h2>
-          <button onclick="clearWaypoints()" class="text-xs text-rose-400 hover:underline">
+          <button onclick="clearWaypoints()" class="text-xs text-rose-500 hover:underline">
             <i class="fa-solid fa-trash-can mr-1"></i>Xóa hết
           </button>
         </div>
@@ -153,8 +160,8 @@
           <p class="text-xs text-slate-500 text-center mt-10">Chưa có điểm giao hàng nào.<br>Hãy click lên bản đồ để thêm điểm.</p>
         </div>
 
-        <div class="pt-3 border-t border-slate-800 mt-2">
-          <button onclick="uploadMission()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2.5 rounded-lg shadow-lg transition flex items-center justify-center space-x-2">
+        <div class="pt-3 mt-2 border-t border-slate-200">
+          <button onclick="uploadMission()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-lg shadow-md transition flex items-center justify-center space-x-2">
             <i class="fa-solid fa-paper-plane"></i>
             <span>NẠP HÀNH TRÌNH XUỐNG XE</span>
           </button>
@@ -164,7 +171,6 @@
     </aside>
   </div>
 
-  <!-- Liên kết tới file app.js của bạn -->
   <script src="app.js"></script>
 </body>
 </html>

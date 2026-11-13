@@ -10,6 +10,7 @@
 #include <math.h>
 #include <string.h>
 #include "main.h"
+#include "cmsis_os.h"
 
 #define EARTH_RADIUS 6371000.0
 #define DEG_TO_RAD (M_PI / 180.0)
@@ -38,7 +39,6 @@ static double Get_Bearing(double lat1, double lon1, double lat2, double lon2) {
 }
 
 void UGV_Auto_Drive(void) {
-    // hết điểm WP || status ko phải MOVING
     if (total_waypoints == 0 || current_wp_index >= total_waypoints) {
         if (strcmp(rover_status, "MOVING") == 0) {
             strcpy(rover_status, "STOP");
@@ -60,8 +60,9 @@ void UGV_Auto_Drive(void) {
 
     double distance_to_target = Get_Distance(true_lat, true_lng, target_lat, target_lng);
     if (distance_to_target < WAYPOINT_RADIUS) {
+    	Control_Motors(0, 0);
         current_wp_index++;
-        HAL_Delay(2000);
+        osDelay(2000);
         return;
     }
 
