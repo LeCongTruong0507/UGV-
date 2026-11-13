@@ -12,8 +12,8 @@
 #include <stdbool.h>
 #include <string.h>
 
-#define BASE_SPEED 35         // Tốc độ chạy thẳng (Khoảng 45% công suất)
-#define MAX_TURN_SPEED 250     // Giới hạn xung bù lúc đánh lái
+#define BASE_SPEED 200         // Tốc độ chạy thẳng (Khoảng 45% công suất)
+#define MAX_TURN_SPEED 300     // Giới hạn xung bù lúc đánh lái
 #define Kp 0.5f                // Hệ số đánh lái (Tăng nếu xe ôm cua chậm)
 #define WAYPOINT_RADIUS 1.5    // Khoảng cách chấp nhận đã đến đích (mét)
 

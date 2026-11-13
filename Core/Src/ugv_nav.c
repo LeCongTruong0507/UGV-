@@ -43,18 +43,17 @@ void UGV_Auto_Drive(void) {
         if (strcmp(rover_status, "MOVING") == 0) {
             strcpy(rover_status, "STOP");
             Control_Motors(0, 0);
-            true_lat = 16.07480000;
-            true_lng = 108.15100000;
+            true_lat = ugv_lat;
+            true_lng = ugv_lon;
         }
         return;
     }
 
-//    if (ugv_speed > 0.1f || (true_lat == 0) ) {
-    if (ugv_speed > 0.1f || 1 ) {
-        true_lat = 16.07480000;
-        true_lng = 108.15100000;
+    if (ugv_speed > 0.1f || (true_lat == 0) ) {
+        true_lat = ugv_lat;
+        true_lng = ugv_lon;
     }
-//    if (true_lat == 0 || true_lng == 0) return;
+    if (true_lat == 0 || true_lng == 0) return;
 
     double target_lat = rover_mission[current_wp_index].lat;
     double target_lng = rover_mission[current_wp_index].lng;
@@ -76,5 +75,5 @@ void UGV_Auto_Drive(void) {
     if(turn_speed > MAX_TURN_SPEED) turn_speed = MAX_TURN_SPEED;
     if(turn_speed < -MAX_TURN_SPEED) turn_speed = -MAX_TURN_SPEED;
 
-    Control_Motors(BASE_SPEED + turn_speed, BASE_SPEED - turn_speed);
+    Control_Motors(BASE_SPEED - turn_speed, BASE_SPEED + turn_speed);
 }

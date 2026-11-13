@@ -1,0 +1,2 @@
+../Core/Src/motor.c:18:6:Control_Motors	16	static
+../Core/Src/motor.c:38:6:Update_Robot_Motion	16	static
